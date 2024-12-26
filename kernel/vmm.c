@@ -47,19 +47,19 @@ uint64 prot_to_type(int prot, int user) {
 // traverse the page table (starting from page_dir) to find the corresponding pte of va.
 // returns: PTE (page table entry) pointing to va.
 //
-pte_t *page_walk(pagetable_t page_dir, uint64 va, int alloc) {
+pte_t* page_walk(pagetable_t page_dir, uint64 va, int alloc) {
   if (va >= MAXVA) panic("page_walk");
 
   // starting from the page directory
-  pagetable_t pt = page_dir;
+  pagetable_t pt = page_dir; //page_dir is the address of the page directory
 
   // traverse from page directory to page table.
   // as we use risc-v sv39 paging scheme, there will be 3 layers: page dir,
   // page medium dir, and page table.
   for (int level = 2; level > 0; level--) {
-    // macro "PX" gets the PTE index in page table of current level
-    // "pte" points to the entry of current level
-    pte_t *pte = pt + PX(level, va);
+    // macro "PX" gets the PTE index in page table of current level  (defined in riscv.h)
+    // "pte" points to the entry of current level         exactly in level2 is "PDE" in level1 is "PTE"
+    pte_t *pte = pt + PX(level, va);  // the PXth entry in the page directory
 
     // now, we need to know if above pte is valid (established mapping to a phyiscal page)
     // or not.
@@ -186,6 +186,18 @@ void user_vm_unmap(pagetable_t page_dir, uint64 va, uint64 size, int free) {
   // (use free_page() defined in pmm.c) the physical pages. lastly, invalidate the PTEs.
   // as naive_free reclaims only one page at a time, you only need to consider one page
   // to make user/app_naive_malloc to behave correctly.
-  panic( "You have to implement user_vm_unmap to free pages using naive_free in lab2_2.\n" );
-
+  pte_t *pte;
+  uint64 pa;
+  uint64 first, last;
+  if(free){
+    for (first = ROUNDDOWN(va, PGSIZE), last = ROUNDDOWN(va + size - 1, PGSIZE);
+      first <= last; first += PGSIZE) {
+        pte = page_walk(page_dir, first, 0);
+        if(*pte & PTE_V){
+          pa = lookup_pa(page_dir, first);
+          free_page((void *)pa);
+          (*pte) ^= PTE_V;
+        }
+    }
+  }
 }
