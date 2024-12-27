@@ -44,7 +44,7 @@ void handle_mtrap() {
     case CAUSE_ILLEGAL_INSTRUCTION:
       // TODO (lab1_2): call handle_illegal_instruction to implement illegal instruction
       // interception, and finish lab1_2.
-      panic( "call handle_illegal_instruction to accomplish illegal instruction interception for lab1_2.\n" );
+      handle_illegal_instruction();
 
       break;
     case CAUSE_MISALIGNED_LOAD:
@@ -53,7 +53,6 @@ void handle_mtrap() {
     case CAUSE_MISALIGNED_STORE:
       handle_misaligned_store();
       break;
-
     default:
       sprint("machine trap(): unexpected mscause %p\n", mcause);
       sprint("            mepc=%p mtval=%p\n", read_csr(mepc), read_csr(mtval));
