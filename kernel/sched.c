@@ -6,7 +6,7 @@
 #include "spike_interface/spike_utils.h"
 
 process* ready_queue_head = NULL;
-
+process* blocked_queue_head = NULL;
 //
 // insert a process, proc, into the END of ready queue.
 //
@@ -70,4 +70,47 @@ void schedule() {
   current->status = RUNNING;
   sprint( "going to schedule process %d to run.\n", current->pid );
   switch_to( current );
+}
+
+void insert_to_blocked_queue(process *proc) {
+  if( blocked_queue_head == NULL ){
+    proc->status = BLOCKED;
+    proc->queue_next = NULL;
+    blocked_queue_head = proc;
+    return;
+  }
+  // blocked queue is not empty
+  process *p;
+  // browse the blocked queue to see if proc is already in-queue
+  for( p=blocked_queue_head; p->queue_next!=NULL; p=p->queue_next )
+    if( p == proc ) return;  //already in queue
+
+  if( p==proc ) return;
+
+  p->queue_next = proc;
+  proc->status = BLOCKED;
+  proc->queue_next = NULL;
+  return;
+}
+
+void weaken_process(process* proc){
+  process* wakeup = NULL;
+  process* p;
+  if(blocked_queue_head == NULL) return;
+  if(blocked_queue_head == proc->parent){
+    wakeup = blocked_queue_head;
+    blocked_queue_head = blocked_queue_head->queue_next;
+    wakeup->status = READY;
+    insert_to_ready_queue(wakeup);
+    return;
+  }
+  for( p=blocked_queue_head; p->queue_next!=NULL; p=p->queue_next ){
+    if( p->queue_next == proc->parent ) {
+      wakeup = p->queue_next;
+      p->queue_next = p->queue_next->queue_next;
+      wakeup->status = READY;
+      insert_to_ready_queue(wakeup);
+      return;
+    }
+  }
 }

@@ -191,7 +191,7 @@ int do_fork( process* parent)
         memcpy( (void*)lookup_pa(child->pagetable, child->mapped_info[STACK_SEGMENT].va),
           (void*)lookup_pa(parent->pagetable, parent->mapped_info[i].va), PGSIZE );
         break;
-      case HEAP_SEGMENT:
+      case HEAP_SEGMENT:{
         // build a same heap for child process.
 
         // convert free_pages_address into a filter to skip reclaimed blocks in the heap
@@ -221,6 +221,7 @@ int do_fork( process* parent)
         // copy the heap manager from parent to child
         memcpy((void*)&child->user_heap, (void*)&parent->user_heap, sizeof(parent->user_heap));
         break;
+      }
       case CODE_SEGMENT:
         // TODO (lab3_1): implment the mapping of child code segment to parent's
         // code segment.
@@ -240,6 +241,21 @@ int do_fork( process* parent)
         child->mapped_info[child->total_mapped_region].seg_type = CODE_SEGMENT;
         child->total_mapped_region++;
         break;
+      case DATA_SEGMENT:
+        for( int j=0; j<parent->mapped_info[i].npages; j++ ){
+            uint64 addr = lookup_pa(parent->pagetable, parent->mapped_info[i].va+j*PGSIZE);
+            char *newaddr = alloc_page(); memcpy(newaddr, (void *)addr, PGSIZE);
+            map_pages(child->pagetable, parent->mapped_info[i].va+j*PGSIZE, PGSIZE,
+                    (uint64)newaddr, prot_to_type(PROT_WRITE | PROT_READ, 1));
+        }
+
+        // after mapping, register the vm region (do not delete codes below!)
+        child->mapped_info[child->total_mapped_region].va = parent->mapped_info[i].va;
+        child->mapped_info[child->total_mapped_region].npages = 
+          parent->mapped_info[i].npages;
+        child->mapped_info[child->total_mapped_region].seg_type = DATA_SEGMENT;
+        child->total_mapped_region++;
+        break;
     }
   }
 
@@ -249,4 +265,41 @@ int do_fork( process* parent)
   insert_to_ready_queue( child );
 
   return child->pid;
+}
+
+
+int wait_process(uint64 pid)
+{
+  int found = 0;
+  if (pid == -1) {
+    for (int i = 0; i < NPROC; i++)
+      if (procs[i].parent == current) {
+        found = 1;
+          if (procs[i].status == ZOMBIE) {
+          procs[i].status = FREE;
+          return i;
+          }
+      }
+    if (found == 0) return -1;   //current parent process doesn't have child process. invalid!
+    else {
+      insert_to_blocked_queue(current);
+      schedule();
+      return -2;
+    }     //there exists a child process without ZOMBIE status
+  }
+  else if (pid < NPROC) {
+    if (procs[pid].parent != current) return -1;//input process pid isn't child of current process
+    else {
+      if (procs[pid].status == ZOMBIE) {
+        procs[pid].status = FREE;
+        return pid;
+      }
+      else {
+        insert_to_blocked_queue(current);
+        schedule();
+        return -2;
+      }  
+    }
+  }
+  else return -1;   //invalid pid
 }

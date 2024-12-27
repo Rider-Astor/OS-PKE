@@ -106,4 +106,6 @@ int do_fork(process* parent);
 // current running process
 extern process* current;
 
+int wait_process(uint64 pid);
+
 #endif
