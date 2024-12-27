@@ -11,6 +11,6 @@
 #define PKE_MAX_ALLOWABLE_RAM 128 * 1024 * 1024
 
 // the ending physical address that PKE observes. added @lab2_1
-#define PHYS_TOP (DRAM_BASE + PKE_MAX_ALLOWABLE_RAM)
+#define PHYS_TOP (DRAM_BASE + PKE_MAX_ALLOWABLE_RAM)  //DRAM_BASE == 2G
 
 #endif
