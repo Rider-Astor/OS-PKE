@@ -496,7 +496,7 @@ struct vinode *rfs_create(struct vinode *parent, struct dentry *sub_dentry) {
   // Note: DO NOT DELETE CODE BELOW PANIC.
   free_dinode->size=0;
   free_dinode->type=R_FILE;
-  free_dinode->nlinks=0;
+  free_dinode->nlinks=1;
   free_dinode->blocks=0;
   // DO NOT REMOVE ANY CODE BELOW.
   // allocate a free block for the file
@@ -593,7 +593,12 @@ int rfs_link(struct vinode *parent, struct dentry *sub_dentry, struct vinode *li
   //    rfs_add_direntry here.
   // 3) persistent the changes to disk. you can use rfs_write_back_vinode here.
   //
-  panic("You need to implement the code for creating a hard link in lab4_3.\n" );
+  char * filename = sub_dentry->name;
+  link_node->nlinks++;
+  int res = rfs_add_direntry(parent, filename, link_node->inum);
+  res |= rfs_write_back_vinode(link_node);
+  res |= rfs_write_back_vinode(parent);
+  return res;
 }
 
 //
