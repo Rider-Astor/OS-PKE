@@ -2,3 +2,4 @@ vmm.c
 strap.c
 machine/mtrap.c
 process.c
+rfs.c
