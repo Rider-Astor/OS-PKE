@@ -214,6 +214,43 @@ ssize_t sys_user_unlink(char * vfn){
 }
 
 //
+// lib call to read present working directory (pwd)
+//
+ssize_t sys_user_readcwd(char* pathva){
+    char path[30];
+    memset(path,0,sizeof(path));
+    if(current->pfiles->cwd->name[0] != '/') path[0] = '/';
+    strcat(path,current->pfiles->cwd->name);
+    strcpy(user_va_to_pa(current->pagetable,(void*)pathva),path);
+    return 0;
+}
+
+//
+// lib call to change pwd
+//
+ssize_t sys_user_changecwd(char* pathva){
+    char * pathpa = (char*)user_va_to_pa((pagetable_t)(current->pagetable), pathva);
+    char path[30];
+    if(pathpa[0] == '.' && pathpa[1] == '/'){// "./xxxx"
+        strcpy(path,pathpa + 2);
+        current->pfiles->cwd = hash_get_dentry(current->pfiles->cwd,path);
+    }else if(pathpa[0] == '.' && pathpa[1] == '.'){  // "../xxxx"
+        current->pfiles->cwd = current->pfiles->cwd->parent;
+        if(pathpa[2] == '/'){
+            strcpy(path,pathpa + 3);
+            current->pfiles->cwd = hash_get_dentry(current->pfiles->cwd,path);
+        }
+    }else{
+        if(pathpa[0] == '/')
+            strcpy(path,pathpa + 1);
+        else
+            strcpy(path,pathpa);
+        current->pfiles->cwd = hash_get_dentry(current->pfiles->cwd,path);
+    }
+    return 0;
+}
+
+//
 // [a0]: the syscall number; [a1] ... [a7]: arguments to the syscalls.
 // returns the code of success, (e.g., 0 means success, fail for otherwise)
 //
@@ -261,6 +298,10 @@ long do_syscall(long a0, long a1, long a2, long a3, long a4, long a5, long a6, l
       return sys_user_link((char *)a1, (char *)a2);
     case SYS_user_unlink:
       return sys_user_unlink((char *)a1);
+    case SYS_user_rcwd:
+      return sys_user_readcwd((char *)a1);
+    case SYS_user_ccwd:
+      return sys_user_changecwd((char *)a1);
     default:
       panic("Unknown syscall %ld \n", a0);
   }

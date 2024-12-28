@@ -9,6 +9,7 @@
 #include "util/string.h"
 #include "util/types.h"
 #include "util/hash_table.h"
+#include "process.h"
 
 struct dentry *vfs_root_dentry;               // system root direntry
 struct super_block *vfs_sb_list[MAX_MOUNTS];  // system superblock list
@@ -510,8 +511,17 @@ int vfs_closedir(struct file *file) {
 struct dentry *lookup_final_dentry(const char *path, struct dentry **parent,
                                    char *miss_name) {
   char path_copy[MAX_PATH_LEN];
+  char buff[MAX_PATH_LEN];
   strcpy(path_copy, path);
-
+  if(path_copy[0] == '.' && path_copy[1] == '/'){
+    strcpy(buff, path_copy + 1);
+    strcpy(path_copy, current->pfiles->cwd->name);
+    strcat(path_copy, buff);
+  }else if(path_copy[0] == '.' && path_copy[1] == '.'){
+    strcpy(buff, path_copy + 2);
+    strcpy(path_copy, current->pfiles->cwd->parent->name);
+    strcat(path_copy, buff);
+  }
   // split the path, and retrieves a token at a time.
   // note: strtok() uses a static (local) variable to store the input path
   // string at the first time it is called. thus it can out a token each time.
