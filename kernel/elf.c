@@ -7,6 +7,7 @@
 #include "string.h"
 #include "riscv.h"
 #include "spike_interface/spike_utils.h"
+#include "config.h"
 
 typedef struct elf_info_t {
   spike_file_t *f;
@@ -195,6 +196,65 @@ endop:;
 }
 
 //
+// print the structure of the section header
+//
+void elf_print(elf_sect_header* shdr){
+  sprint("  Type          : %d\n", shdr->type);
+  sprint("  Flags         : %lld\n", shdr->flags);
+  sprint("  Address       : %lld\n", shdr->addr);
+  sprint("  Offset        : %lld\n", shdr->offset);
+  sprint("  Size          : %lld\n", shdr->size);
+  sprint("  Link          : %d\n", shdr->link);
+  sprint("  Info          : %d\n", shdr->info);
+  sprint("  Address Align : %lld\n", shdr->addralign);
+  sprint("  Entry Size    : %lld\n", shdr->entsize);
+}
+
+//
+// 加载.debug_line段
+//
+elf_status elf_load_debug(elf_ctx *ctx){
+  elf_sect_header shdr;
+  uint64 sh_offset = ctx->ehdr.shoff;
+  uint16 sh_num = ctx->ehdr.shnum;
+
+  elf_sect_header shstrtab_hdr;
+  uint64 shstrtab_offset = sh_offset + ctx->ehdr.shstrndx * sizeof(shdr);
+  if (elf_fpread(ctx, &shstrtab_hdr, sizeof(shstrtab_hdr), shstrtab_offset) != sizeof(shstrtab_hdr)) {
+    sprint("Failed to read section header string table!\n");
+    return EL_EIO;
+  }
+
+  uint64 strtab_offset = shstrtab_hdr.offset;
+
+  for(int i = 0; i < sh_num; i ++){//遍历sect_header_table
+    if (elf_fpread(ctx, (void *)&shdr, sizeof(shdr), sh_offset + i * sizeof(shdr)) != sizeof(shdr))
+      return EL_EIO;
+    char sect_name[32];
+    if (elf_fpread(ctx, (void *)sect_name, sizeof(sect_name), strtab_offset + shdr.name) < 0)
+      return EL_EIO;
+    // sprint("%s\n", sect_name);
+    // elf_print(&shdr);
+    //找到.debug_line段
+    if (strcmp(sect_name, ".debug_line") == 0) {
+      if(shdr.type != SHT_PROGBITS) continue;
+      if (shdr.addr + shdr.size < shdr.addr) return EL_ERR;
+
+      void *dest_debug = elf_alloc_mb(ctx, USER_DEBUG_LINE, USER_DEBUG_LINE, shdr.size);
+
+      // sprint("LOADOKIN\n");
+      if (elf_fpread(ctx, dest_debug, shdr.size, shdr.offset) != shdr.size) {
+        return EL_EIO;  // 读取失败
+      }
+      // sprint("LOADOK\n");
+      make_addr_line(ctx, dest_debug, shdr.size);
+      break;
+    }
+  }
+  return EL_OK;
+}
+
+//
 // load the elf segments to memory regions as we are in Bare mode in lab1
 //
 elf_status elf_load(elf_ctx *ctx) {
@@ -219,7 +279,8 @@ elf_status elf_load(elf_ctx *ctx) {
       return EL_EIO;
   }
 
-  return EL_OK;
+  return elf_load_debug(ctx);
+  //return EL_OK
 }
 
 typedef union {

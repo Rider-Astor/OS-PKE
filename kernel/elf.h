@@ -6,6 +6,8 @@
 
 #define MAX_CMDLINE_ARGS 64
 
+#define USER_DEBUG_LINE 0x81400000
+
 // elf header structure
 typedef struct elf_header_t {
   uint32 magic;
@@ -66,6 +68,7 @@ typedef struct __attribute__((packed)) {
 
 #define ELF_MAGIC 0x464C457FU  // "\x7FELF" in little endian
 #define ELF_PROG_LOAD 1
+#define SHT_PROGBITS 1
 
 typedef enum elf_status_t {
   EL_OK = 0,

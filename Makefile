@@ -64,12 +64,10 @@ SPIKE_INF_LIB   := $(OBJ_DIR)/spike_interface.a
 
 #---------------------	user   -----------------------
 USER_LDS  := user/user.lds
-USER_CPPS 		:= user/*.c 
+USER_CPPS 	:= user/*.c
 
 USER_CPPS  		:= $(wildcard $(USER_CPPS))
 USER_OBJS  		:= $(addprefix $(OBJ_DIR)/, $(patsubst %.c,%.o,$(USER_CPPS)))
-
-
 
 USER_TARGET 	:= $(OBJ_DIR)/app_errorline
 #------------------------targets------------------------
@@ -82,7 +80,7 @@ $(OBJ_DIR):
 
 $(OBJ_DIR)/%.o : %.c
 	@echo "compiling" $<
-	@$(COMPILE) -c $< -o $@
+	@$(COMPILE) -c -g $< -o $@
 
 $(OBJ_DIR)/%.o : %.S
 	@echo "compiling" $<
