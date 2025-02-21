@@ -49,7 +49,8 @@ void smode_trap_handler(void) {
   // make sure we are in User mode before entering the trap handling.
   // we will consider other previous case in lab1_3 (interrupt).
   if ((read_csr(sstatus) & SSTATUS_SPP) != 0) panic("usertrap: not from user mode");
-
+  process * current = get_current();
+  // sprint("hartid : %d and current : %lld\n",read_tp(), (uint64)current);  need update!!!!
   assert(current);
   // save user process counter.
   current->trapframe->epc = read_csr(sepc);

@@ -26,6 +26,7 @@ mtrapvec:
     addi a4, a4, 1
     mul a3, a3, a4
     add sp, sp, a3
+    #栈从高地址到低地址使用
 
     # pointing mscratch back to g_itrframe
     csrw mscratch, a0

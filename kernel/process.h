@@ -25,6 +25,12 @@ typedef struct process_t {
 
 void switch_to(process*);
 
-extern process* current;
+process* get_current();
+void set_current(process*);
+
+typedef struct hart_context_t {
+  uint64 hartid;
+  process* proc;
+}hart_context;
 
 #endif

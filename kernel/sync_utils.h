@@ -14,6 +14,7 @@ static inline void sync_barrier(volatile int *counter, int all) {
     do {
       asm volatile("lw %0, (%1)\n" : "=r"(local) : "r"(counter) : "memory");
     } while (local < all);
+    asm volatile("sw zero, (%0)\n" :: "r"(counter) : "memory");
   }
 }
 

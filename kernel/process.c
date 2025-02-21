@@ -20,14 +20,25 @@ extern char smode_trap_vector[];
 extern void return_to_user(trapframe*);
 
 // current points to the currently running user-mode application.
-process* current = NULL;
+
+process* get_current(){
+  hart_context* hart = (hart_context*)read_tp();
+  // sprint("get current : %lld\n", (uint64)hart->proc);
+  return hart->proc;
+}
+void set_current(process* proc){
+  hart_context* hart = (hart_context*)read_tp();
+  // sprint("set current to : %lx\n", (uint64)proc);
+  hart->proc = proc;
+  // sprint("hart set ok\n");
+}
 
 //
 // switch to a user-mode process
 //
 void switch_to(process* proc) {
   assert(proc);
-  current = proc;
+  set_current(proc);
 
   // write the smode_trap_vector (64-bit func. address) defined in kernel/strap_vector.S
   // to the stvec privilege register, such that trap handler pointed by smode_trap_vector
