@@ -60,7 +60,7 @@ void load_user_program(process *proc) {
 
   // populate the page table of user application. added @lab2_1
   // map user stack in userspace, user_vm_map is defined in kernel/vmm.c
-  user_vm_map((pagetable_t)proc->pagetable, USER_STACK_TOP - PGSIZE, PGSIZE, user_stack,
+  user_vm_map((pagetable_t)proc->pagetable, USER_STACK_TOP - PGSIZE, PGSIZE, user_stack,// here shows user stack is 1 pagesize(4kb)
          prot_to_type(PROT_WRITE | PROT_READ, 1));
 
   // map trapframe in user space (direct mapping as in kernel space).
