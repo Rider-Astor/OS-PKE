@@ -2,7 +2,6 @@
 #define _PROC_H_
 
 #include "riscv.h"
-
 typedef struct trapframe_t {
   // space to store context (all common registers)
   /* offset:0   */ riscv_regs regs;
@@ -33,6 +32,8 @@ void switch_to(process*);
 
 // current running process
 extern process* current;
+
+extern void *free_chunk_list;
 
 // address of the first free page in our simple heap. added @lab2_2
 extern uint64 g_ufree_page;

@@ -4,7 +4,6 @@
 
 #include <stdint.h>
 #include <errno.h>
-
 #include "util/types.h"
 #include "syscall.h"
 #include "string.h"
@@ -13,7 +12,7 @@
 #include "pmm.h"
 #include "vmm.h"
 #include "spike_interface/spike_utils.h"
-
+#include "memlayout.h"
 //
 // implement the SYS_user_print syscall
 //
@@ -45,7 +44,6 @@ uint64 sys_user_allocate_page() {
   g_ufree_page += PGSIZE;
   user_vm_map((pagetable_t)current->pagetable, va, PGSIZE, (uint64)pa,
          prot_to_type(PROT_WRITE | PROT_READ, 1));
-
   return va;
 }
 
@@ -56,6 +54,20 @@ uint64 sys_user_free_page(uint64 va) {
   user_vm_unmap((pagetable_t)current->pagetable, va, PGSIZE, 1);
   return 0;
 }
+
+
+
+uint64 sys_user_allocate_chunk(size_t bytes) {
+  return (uint64)user_better_malloc(bytes);
+}
+
+//
+// reclaim a page, indicated by "va". added @lab2_2
+//
+uint64 sys_user_free_chunk(uint64 va) {
+  return user_better_free((void *)va);
+}
+
 
 //
 // [a0]: the syscall number; [a1] ... [a7]: arguments to the syscalls.
@@ -72,6 +84,10 @@ long do_syscall(long a0, long a1, long a2, long a3, long a4, long a5, long a6, l
       return sys_user_allocate_page();
     case SYS_user_free_page:
       return sys_user_free_page(a1);
+    case SYS_user_allocate_chunk:
+      return sys_user_allocate_chunk(a1);
+    case SYS_user_free_chunk:
+      return sys_user_free_chunk(a1);
     default:
       panic("Unknown syscall %ld \n", a0);
   }

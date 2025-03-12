@@ -10,6 +10,7 @@
 #include "util/string.h"
 #include "spike_interface/spike_utils.h"
 #include "util/functions.h"
+#include "process.h"
 
 /* --- utility functions for virtual address mapping --- */
 //
@@ -200,4 +201,128 @@ void user_vm_unmap(pagetable_t page_dir, uint64 va, uint64 size, int free) {
         }
     }
   }
+}
+
+
+void *find_availchunk(size_t size){
+  memctr_block * chunk_pa;
+  for (void *chunk = free_chunk_list; chunk != NULL; chunk = chunk_pa->next) {
+    chunk_pa = (memctr_block *)user_va_to_pa(current->pagetable, chunk);
+    // sprint("chunkPA: %lx, %lx\n", chunk_pa->size, chunk_pa->next);
+    if (chunk_pa->size >= size) {
+      return (void *)chunk; // 返回用户可用地址
+    }
+  }
+  return NULL;
+}
+
+void add_to_free_list(void * chunk){
+  void *it = free_chunk_list;
+  void *pre = NULL;
+  while(it < chunk && it != NULL){
+    pre = it;
+    it = ((memctr_block *)user_va_to_pa(current->pagetable, it))->next;
+  }
+  if(it == free_chunk_list){
+    free_chunk_list = chunk;
+    ((memctr_block *)user_va_to_pa(current->pagetable, chunk))->next = it;
+  }else{
+    ((memctr_block *)user_va_to_pa(current->pagetable, pre))->next = chunk;
+    ((memctr_block *)user_va_to_pa(current->pagetable, chunk))->next = it;
+  }
+  // it = free_chunk_list;
+  // while(it != NULL){
+  //   memctr_block * it_pa = (memctr_block *)user_va_to_pa(current->pagetable, it);
+  //   sprint("addr:%lx, size:%lx, next:%lx -> ", it, it_pa->size, it_pa->next);
+  //   it = it_pa->next;
+  // }
+}
+
+void remove_from_free_list(void * chunk){
+  if(chunk == free_chunk_list){
+    free_chunk_list = ((memctr_block *)user_va_to_pa(current->pagetable, chunk))->next;
+    return;
+  }
+  void *it = free_chunk_list;
+  void *pre = NULL;
+  while(it != chunk && it != NULL){ //主要是找pre
+    pre = it;
+    it = ((memctr_block *)user_va_to_pa(current->pagetable, it))->next;
+  }
+  if(it != chunk){
+    panic("Error when remove from free list!");
+  }
+  ((memctr_block *)user_va_to_pa(current->pagetable, pre))->next = ((memctr_block *)user_va_to_pa(current->pagetable, chunk))->next;
+}
+
+void merge_free_chunk(){
+  void * it = free_chunk_list;
+  memctr_block *it_pa = NULL, *nxt_pa = NULL;
+  void * nxt = NULL;
+  while(it != NULL){
+    it_pa = (memctr_block *)user_va_to_pa(current->pagetable, it);
+    nxt = it_pa->next;
+    while(it + it_pa->size == nxt){
+      nxt_pa = (memctr_block *)user_va_to_pa(current->pagetable, nxt);
+      it_pa->size += nxt_pa->size + sizeof(memctr_block);
+      nxt = nxt_pa->next;
+    }
+    it_pa->next = it = nxt;
+  }
+}
+
+void split_chunk(void *chunk, size_t req_size) {
+  memctr_block * chunk_pa = user_va_to_pa(current->pagetable, chunk);
+  void * new_chunk = (void *)ROUNDUP((uint64)chunk + req_size + sizeof(memctr_block), sizeof(memctr_block));
+  size_t remaining = (chunk_pa->size) + chunk - new_chunk;
+  // sprint("spliting : new chunk = %lx, remaining = %lx\n", new_chunk, remaining);
+  if (remaining >= 4) {   // 剩余足够拆分新块  (1 int)
+    memctr_block *new_chunk_pa = (memctr_block *)user_va_to_pa(current->pagetable, new_chunk);
+    new_chunk_pa->size = remaining;
+    add_to_free_list(new_chunk); // 将剩余块加入空闲链表
+    chunk_pa->size = req_size;      // 更新当前块大小
+    // sprint("spliting : old_size = %lx, newsize = %lx\n", chunk_pa->size, new_chunk_pa->size);
+    //add chunk into using list (not needed now)
+  }
+}
+
+uint64 malloc_extend(uint64 va){
+  uint64 pa;
+  for(int i = 1;i <= 32;i ++){  
+    pa = (uint64) alloc_page();
+    memset((void *)pa, 0, PGSIZE);
+    user_vm_map((pagetable_t)current->pagetable, va, PGSIZE, pa,
+          prot_to_type(PROT_WRITE | PROT_READ, 1));
+    va += PGSIZE;
+  }
+  return va;
+}
+
+void * user_better_malloc(size_t bytes){
+  // sprint("bytes: %lld\n", bytes);
+  if(free_chunk_list == NULL) {//first time to alloc -> 创建内存池132KB
+    uint64 va = malloc_extend(g_ufree_page);
+    free_chunk_list = (void *)g_ufree_page;
+    // sprint("ufree_page = %lx\n", g_ufree_page);
+    memctr_block * memctr_block_pa = (memctr_block *) user_va_to_pa(current->pagetable, free_chunk_list);
+    memctr_block_pa->size = 132 * 1024 - sizeof(memctr_block);
+    memctr_block_pa->next = NULL;
+    g_ufree_page = va;
+  }
+  // sprint("MCB OK!\n");
+  void *availchunk = find_availchunk(bytes);
+  // sprint("Available chunk : %lx\n", availchunk);
+  if(availchunk){
+    split_chunk(availchunk, bytes);
+    remove_from_free_list(availchunk);
+    return availchunk;
+  }
+  // else --> not enough
+  return 0;
+}
+
+uint64 user_better_free(void * va){
+  add_to_free_list(va);
+  merge_free_chunk();
+  return 0;
 }

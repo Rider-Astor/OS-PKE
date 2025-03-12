@@ -13,6 +13,11 @@ enum VMPermision {
   PROT_EXEC = 4,
 };
 
+typedef struct memctr_block_t {
+  size_t size;  //8
+  struct memctr_block_t * next; //8
+}memctr_block;
+
 uint64 prot_to_type(int prot, int user);
 pte_t *page_walk(pagetable_t pagetable, uint64 va, int alloc);
 uint64 lookup_pa(pagetable_t pagetable, uint64 va);
@@ -30,5 +35,11 @@ void kern_vm_init(void);
 void *user_va_to_pa(pagetable_t page_dir, void *va);
 void user_vm_map(pagetable_t page_dir, uint64 va, uint64 size, uint64 pa, int perm);
 void user_vm_unmap(pagetable_t page_dir, uint64 va, uint64 size, int free);
+
+// lab3_cha2
+void *find_availchunk(size_t size);
+void split_chunk(void *chunk, size_t req_size);
+void *user_better_malloc(size_t bytes);
+uint64 user_better_free(void *va);
 
 #endif
