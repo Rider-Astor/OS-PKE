@@ -183,7 +183,7 @@ typedef struct riscv_regs_t {
 
 // following lines are added @lab2_1
 static inline void flush_tlb(void) { asm volatile("sfence.vma zero, zero"); }
-#define PGSIZE 4096  // bytes per page
+#define PGSIZE 4096  // bytes per page (每个物理页大小为4KB) 12bit
 #define PGSHIFT 12   // offset bits within a page
 
 // use riscv's sv39 page table scheme.
