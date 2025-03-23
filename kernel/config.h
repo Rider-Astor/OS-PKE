@@ -13,4 +13,7 @@
 // the ending physical address that PKE observes. added @lab2_1
 #define PHYS_TOP (DRAM_BASE + PKE_MAX_ALLOWABLE_RAM)
 
+#define SYNC_ADDR (int *)0x80FFFFFC
+
+
 #endif

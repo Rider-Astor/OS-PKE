@@ -30,11 +30,11 @@ typedef struct process_t {
 
 // switch to run user app
 void switch_to(process*);
-
-// current running process
-extern process* current;
+ 
+// current running processes
+extern process* current[NCPU];
 
 // address of the first free page in our simple heap. added @lab2_2
-extern uint64 g_ufree_page;
+extern uint64 ufree_page[NCPU];
 
 #endif

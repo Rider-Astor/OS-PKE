@@ -10,6 +10,7 @@
 #include "util/string.h"
 #include "spike_interface/spike_utils.h"
 #include "util/functions.h"
+#include "process.h"
 
 /* --- utility functions for virtual address mapping --- */
 //
@@ -19,7 +20,6 @@
 int map_pages(pagetable_t page_dir, uint64 va, uint64 size, uint64 pa, int perm) {
   uint64 first, last;
   pte_t *pte;
-
   for (first = ROUNDDOWN(va, PGSIZE), last = ROUNDDOWN(va + size - 1, PGSIZE);
       first <= last; first += PGSIZE, pa += PGSIZE) {
     if ((pte = page_walk(page_dir, first, 1)) == 0) return -1;
@@ -77,7 +77,7 @@ pte_t* page_walk(pagetable_t page_dir, uint64 va, int alloc) {
         return 0;
     }
   }
-
+  
   // return a PTE which contains phisical address of a page
   return pt + PX(0, va);
 }
@@ -123,6 +123,7 @@ void kern_vm_init(void) {
 
   // allocate a page (t_page_dir) to be the page directory for kernel. alloc_page is defined in kernel/pmm.c
   t_page_dir = (pagetable_t)alloc_page();
+  // sprint("pagetable allocated!\n");
   // memset is defined in util/string.c
   memset(t_page_dir, 0, PGSIZE);
 
@@ -173,7 +174,6 @@ void user_vm_map(pagetable_t page_dir, uint64 va, uint64 size, uint64 pa, int pe
     panic("fail to user_vm_map .\n");
   }
 }
-
 //
 // unmap virtual address [va, va+size] from the user app.
 // reclaim the physical pages if free!=0

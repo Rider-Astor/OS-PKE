@@ -2,9 +2,7 @@
 #define _SYNC_UTILS_H_
 
 static inline void sync_barrier(volatile int *counter, int all) {
-
   int local;
-
   asm volatile("amoadd.w %0, %2, (%1)\n"
                : "=r"(local)
                : "r"(counter), "r"(1)
@@ -14,6 +12,7 @@ static inline void sync_barrier(volatile int *counter, int all) {
     do {
       asm volatile("lw %0, (%1)\n" : "=r"(local) : "r"(counter) : "memory");
     } while (local < all);
+    asm volatile("sw zero, (%0)\n" :: "r"(counter) : "memory"); //使用后清零
   }
 }
 
