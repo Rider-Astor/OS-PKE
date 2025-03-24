@@ -108,6 +108,7 @@ uint64 do_semNew(int free_count){
 uint64 do_semV(uint64 sem_id){
   spinlock_lock(&(sem[sem_id].sem_lock));
   sem[sem_id].count ++;
+  sprint("proc %lld do_semV on %d, count = %lld\n", current->pid, sem_id, sem[sem_id].count);
   if(sem[sem_id].queue != NULL){
     semqueue_to_readyqueue(&sem[sem_id]);
   }
@@ -118,6 +119,7 @@ uint64 do_semV(uint64 sem_id){
 uint64 do_semP(uint64 sem_id){
   spinlock_lock(&(sem[sem_id].sem_lock));
   sem[sem_id].count --;
+  sprint("proc %lld do_semP on %d, count = %lld\n", current->pid, sem_id, sem[sem_id].count);
   if(sem[sem_id].count < 0){
     insert_to_semqueue(&sem[sem_id]);
   }
