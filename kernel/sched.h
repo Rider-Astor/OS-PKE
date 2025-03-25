@@ -8,7 +8,7 @@
 #define TIME_SLICE_LEN  2
 
 typedef struct semaphore_t {
-    uint64 count; // resources remained
+    long count; // resources remained
     process *queue;
     spinlock_t sem_lock;
 }semaphore;

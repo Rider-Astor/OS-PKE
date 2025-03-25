@@ -75,24 +75,25 @@ void schedule() {
   switch_to( current );
 }
 
-void insert_to_semqueue(semaphore *semap){
-  spinlock_unlock(&(semap->sem_lock)); ///////////以免schedule后自旋锁未解锁
-  current->status = BLOCKED;
+void insert_to_semqueue(semaphore *semap, process * proc){
+  proc->status = BLOCKED;
+  proc->queue_next = NULL;
   if(semap->queue == NULL){ 
-    semap->queue = current;
-    schedule();
+    semap->queue = proc;
     return; // never reach here
   }
   process *tail = semap->queue;
   while(tail->queue_next != NULL){
+    if( tail == proc ) return; // already in semqueue
     tail = tail->queue_next;
   }
-  tail->queue_next = current;
-
+  tail->queue_next = proc;
+  return;
 }
 
 void semqueue_to_readyqueue(semaphore *sema){
   process *proc = sema->queue;
+  if(proc == NULL) panic("No process is blocked by semaphore!");
   sema->queue = sema->queue->queue_next;
   insert_to_ready_queue(proc);
 }
@@ -108,7 +109,6 @@ uint64 do_semNew(int free_count){
 uint64 do_semV(uint64 sem_id){
   spinlock_lock(&(sem[sem_id].sem_lock));
   sem[sem_id].count ++;
-  sprint("proc %lld do_semV on %d, count = %lld\n", current->pid, sem_id, sem[sem_id].count);
   if(sem[sem_id].queue != NULL){
     semqueue_to_readyqueue(&sem[sem_id]);
   }
@@ -119,9 +119,10 @@ uint64 do_semV(uint64 sem_id){
 uint64 do_semP(uint64 sem_id){
   spinlock_lock(&(sem[sem_id].sem_lock));
   sem[sem_id].count --;
-  sprint("proc %lld do_semP on %d, count = %lld\n", current->pid, sem_id, sem[sem_id].count);
   if(sem[sem_id].count < 0){
-    insert_to_semqueue(&sem[sem_id]);
+    insert_to_semqueue(&sem[sem_id], current);
+    spinlock_unlock(&(sem[sem_id].sem_lock));
+    schedule();
   }
   spinlock_unlock(&(sem[sem_id].sem_lock));
   return 0;
