@@ -1,8 +1,8 @@
 #ifndef _FUNCTIONS_H_
 #define _FUNCTIONS_H_
 
-#define ROUNDUP(a, b) ((((a)-1) / (b) + 1) * (b))
-#define ROUNDDOWN(a, b) ((a) / (b) * (b))
+#define ROUNDUP(a, b) ((((a)-1) / (b) + 1) * (b))  // used for Alignment（对齐） 大于a的b的最小倍数
+#define ROUNDDOWN(a, b) ((a) / (b) * (b))          // 小于a的b的最大倍数
 
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 #define MIN(a, b) ((a) < (b) ? (a) : (b))

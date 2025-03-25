@@ -36,7 +36,7 @@ enum proc_status {
 enum segment_type {
   STACK_SEGMENT = 0,   // runtime stack segment
   CONTEXT_SEGMENT, // trapframe segment
-  SYSTEM_SEGMENT,  // system segment
+  SYSTEM_SEGMENT,  // system segment (like kstack in process)
   HEAP_SEGMENT,    // runtime heap segment
   CODE_SEGMENT,    // ELF segment
   DATA_SEGMENT,    // ELF segment
