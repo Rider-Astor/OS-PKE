@@ -195,7 +195,7 @@ void user_vm_unmap(pagetable_t page_dir, uint64 va, uint64 size, int free) {
         pte = page_walk(page_dir, first, 0);
         if(*pte & PTE_V){
           pa = lookup_pa(page_dir, first);
-          free_page((void *)pa);
+          free_page((void *)pa, 0);
           (*pte) ^= PTE_V;
         }
     }
@@ -218,4 +218,11 @@ void print_proc_vmspace(process* proc) {
     }
     sprint( ", mapped to pa:%lx\n", lookup_pa(proc->pagetable, proc->mapped_info[i].va) );
   }
+}
+
+bool cow_check(pagetable_t page_dir, uint64 va){
+  pte_t *pte = page_walk(page_dir, va, 0);
+  // sprint("pte_tag = %lx\n", PTE_FLAGS(*pte));
+  if((*pte & RSW_8) != 0) return 1;
+  else return 0;
 }

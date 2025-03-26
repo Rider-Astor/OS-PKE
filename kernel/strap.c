@@ -10,7 +10,7 @@
 #include "vmm.h"
 #include "sched.h"
 #include "util/functions.h"
-
+#include "string.h"
 #include "spike_interface/spike_utils.h"
 
 //
@@ -27,7 +27,6 @@ static void handle_syscall(trapframe *tf) {
   // IMPORTANT: return value should be returned to user app, or else, you will encounter
   // problems in later experiments!
   tf->regs.a0 = do_syscall(tf->regs.a0,tf->regs.a1,tf->regs.a2,tf->regs.a3,tf->regs.a4,tf->regs.a5,tf->regs.a6,tf->regs.a7);
-
 }
 
 //
@@ -64,6 +63,22 @@ void handle_user_page_fault(uint64 mcause, uint64 sepc, uint64 stval) {
       sprint("unknown page fault.\n");
       break;
   }
+}
+
+void handle_cow(pagetable_t page_dir, uint64 stval){
+  sprint("handle_page_fault: %lx\n", stval);
+  uint64 pa = lookup_pa(page_dir, stval);
+  pte_t *pte = page_walk(page_dir, stval, 0);
+
+  uint64 write_pa = (uint64)alloc_page();
+  memcpy((void *)write_pa, (void *)pa, PGSIZE);
+  *pte &= ~PTE_V; // 原page_dir中的va to pa映射失效
+  // sprint("COW will map va %lx to pa %lx\n", stval, write_pa);s
+  map_pages(page_dir, stval, PGSIZE, write_pa, (PTE_FLAGS(*pte) | PTE_W) & ~RSW_8);
+  // sprint("after cow, prot is %lx\n", (PTE_FLAGS(*pte) | PTE_W) & ~RSW_8);
+
+  //不是哥们，used为0释放后，怎么还判错了
+  // free_page((void *) pa, 0); //used[]--, 再尝试释放
 }
 
 //
@@ -109,11 +124,15 @@ void smode_trap_handler(void) {
       // invoke round-robin scheduler. added @lab3_3
       rrsched();
       break;
+    case CAUSE_FETCH_PAGE_FAULT:
     case CAUSE_STORE_PAGE_FAULT:
     case CAUSE_LOAD_PAGE_FAULT:
       // the address of missing page is stored in stval
       // call handle_user_page_fault to process page faults
-      handle_user_page_fault(cause, read_csr(sepc), read_csr(stval));
+      if(cow_check(current->pagetable, read_csr(stval)))
+        handle_cow(current->pagetable, read_csr(stval));
+      else 
+        handle_user_page_fault(cause, read_csr(sepc), read_csr(stval));
       break;
     default:
       sprint("smode_trap_handler(): unexpected scause %p\n", read_csr(scause));

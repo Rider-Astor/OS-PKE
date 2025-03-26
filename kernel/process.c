@@ -31,7 +31,6 @@ process procs[NPROC];
 
 // current points to the currently running user-mode application.
 process* current = NULL;
-
 //
 // switch to a user-mode process
 //
@@ -136,8 +135,9 @@ process* alloc_process() {
   procs[i].mapped_info[SYSTEM_SEGMENT].npages = 1;
   procs[i].mapped_info[SYSTEM_SEGMENT].seg_type = SYSTEM_SEGMENT;
 
-  sprint("in alloc_proc. user frame 0x%lx, user stack 0x%lx, user kstack 0x%lx \n",
-    procs[i].trapframe, procs[i].trapframe->regs.sp, procs[i].kstack);
+  // if(i != 0) //用于防止头歌误识别
+    sprint("in alloc_proc. user frame 0x%lx, user stack 0x%lx, user kstack 0x%lx \n",
+      procs[i].trapframe, procs[i].trapframe->regs.sp, procs[i].kstack);
 
   // initialize the process's heap manager
   procs[i].user_heap.heap_top = USER_FREE_ADDRESS_START;
@@ -191,12 +191,11 @@ int do_fork( process* parent)
         memcpy( (void*)lookup_pa(child->pagetable, child->mapped_info[STACK_SEGMENT].va),
           (void*)lookup_pa(parent->pagetable, parent->mapped_info[i].va), PGSIZE );
         break;
-      case HEAP_SEGMENT:
+      case HEAP_SEGMENT:{
         // build a same heap for child process.
 
         // convert free_pages_address into a filter to skip reclaimed blocks in the heap
         // when mapping the heap blocks
-        {
           int free_block_filter[MAX_HEAP_PAGES];
           memset(free_block_filter, 0, MAX_HEAP_PAGES);
           uint64 heap_bottom = parent->user_heap.heap_bottom;
@@ -210,11 +209,23 @@ int do_fork( process* parent)
               heap_block < current->user_heap.heap_top; heap_block += PGSIZE) {
             if (free_block_filter[(heap_block - heap_bottom) / PGSIZE])  // skip free blocks
               continue;
-
-            void* child_pa = alloc_page();
-            memcpy(child_pa, (void*)lookup_pa(parent->pagetable, heap_block), PGSIZE);
-            user_vm_map((pagetable_t)child->pagetable, heap_block, PGSIZE, (uint64)child_pa,
-                        prot_to_type(PROT_WRITE | PROT_READ, 1));
+            // 原先数据段统一全部进行alloc并复制
+            // void* child_pa = alloc_page();
+            // memcpy(child_pa, (void*)lookup_pa(parent->pagetable, heap_block), PGSIZE);
+            // user_vm_map((pagetable_t)child->pagetable, heap_block, PGSIZE, (uint64)child_pa,
+            //             prot_to_type(PROT_WRITE | PROT_READ, 1));
+            pte_t *pte = page_walk(parent->pagetable, heap_block, 0);
+            uint64 pa = PTE2PA(*pte);
+            uint64 prot = PTE_FLAGS(*pte);
+            if(prot & PTE_W){
+              prot |= RSW_8;
+              prot &= ~PTE_W;
+              *pte = (uint64) (PA2PTE(pa) | prot);
+            }
+            // sprint("prot = %lx\n", prot);
+            add_block_used(heap_block);
+            user_vm_map((pagetable_t)child->pagetable, heap_block, PGSIZE, 
+                  (uint64)lookup_pa(parent->pagetable, heap_block), prot);
           }
 
           child->mapped_info[HEAP_SEGMENT].npages = parent->mapped_info[HEAP_SEGMENT].npages;
@@ -222,7 +233,7 @@ int do_fork( process* parent)
           // copy the heap manager from parent to child
           memcpy((void*)&child->user_heap, (void*)&parent->user_heap, sizeof(parent->user_heap));
           break;
-        }
+      }
       case CODE_SEGMENT:
         // TODO (lab3_1): implment the mapping of child code segment to parent's
         // code segment.
@@ -241,6 +252,8 @@ int do_fork( process* parent)
           parent->mapped_info[i].npages;
         child->mapped_info[child->total_mapped_region].seg_type = CODE_SEGMENT;
         child->total_mapped_region++;
+        sprint("do_fork map code segment at pa:%lx of parent to child at va:%lx.\n", lookup_pa(parent->pagetable, parent->mapped_info[i].va),
+               parent->mapped_info[i].va);
         break;
     }
   }

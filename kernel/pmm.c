@@ -15,6 +15,8 @@ extern uint64 g_mem_size;
 static uint64 free_mem_start_addr;  //beginning address of free memory
 static uint64 free_mem_end_addr;    //end address of free memory (not included)
 
+int used[PHYS_TOP / PGSIZE];
+
 typedef struct node {
   struct node *next;
 } list_node;
@@ -29,20 +31,23 @@ static list_node g_free_mem_list;
 static void create_freepage_list(uint64 start, uint64 end) {
   g_free_mem_list.next = 0;
   for (uint64 p = ROUNDUP(start, PGSIZE); p + PGSIZE < end; p += PGSIZE)
-    free_page( (void *)p );
+    free_page( (void *)p , 1);
 }
 
 //
 // place a physical page at *pa to the free list of g_free_mem_list (to reclaim the page)
 //
-void free_page(void *pa) {
+void free_page(void *pa, int init) { //init 表示为是否是init情况下的free page操作
   if (((uint64)pa % PGSIZE) != 0 || (uint64)pa < free_mem_start_addr || (uint64)pa >= free_mem_end_addr)
     panic("free_page 0x%lx \n", pa);
-
+  if(!init) used[(uint64) pa / PGSIZE] --;
   // insert a physical page to g_free_mem_list
-  list_node *n = (list_node *)pa;
-  n->next = g_free_mem_list.next;
-  g_free_mem_list.next = n;
+  if(used[(uint64) pa / PGSIZE] == 0){
+    list_node *n = (list_node *)pa;
+    n->next = g_free_mem_list.next;
+    g_free_mem_list.next = n;
+    // if(!init) sprint("%lx is free !\n", pa);
+  }
 }
 
 //
@@ -52,7 +57,8 @@ void free_page(void *pa) {
 void *alloc_page(void) {
   list_node *n = g_free_mem_list.next;
   if (n) g_free_mem_list.next = n->next;
-
+  used[(uint64) n/PGSIZE] ++;
+  // sprint("%lx is allocated!\n", n);
   return (void *)n;
 }
 
@@ -85,4 +91,8 @@ void pmm_init() {
   sprint("kernel memory manager is initializing ...\n");
   // create the list of free pages
   create_freepage_list(free_mem_start_addr, free_mem_end_addr);
+}
+
+void add_block_used(uint64 pa){
+  used[(uint64)ROUNDDOWN(pa, PGSIZE) / PGSIZE] ++;
 }
