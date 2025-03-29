@@ -86,7 +86,7 @@ void init_proc_pool() {
 // allocate an empty process, init its vm space. returns the pointer to
 // process strcuture. added @lab3_1
 //
-process* alloc_process() {
+process* alloc_process(int mode) {
   // locate the first usable process structure
   int i;
 
@@ -136,8 +136,8 @@ process* alloc_process() {
   procs[i].mapped_info[SYSTEM_SEGMENT].npages = 1;
   procs[i].mapped_info[SYSTEM_SEGMENT].seg_type = SYSTEM_SEGMENT;
 
-  sprint("in alloc_proc. user frame 0x%lx, user stack 0x%lx, user kstack 0x%lx \n",
-    procs[i].trapframe, procs[i].trapframe->regs.sp, procs[i].kstack);
+  if(!mode) sprint("in alloc_proc. user frame 0x%lx, user stack 0x%lx, user kstack 0x%lx \n",
+      procs[i].trapframe, procs[i].trapframe->regs.sp, procs[i].kstack);
 
   // initialize the process's heap manager
   procs[i].user_heap.heap_top = USER_FREE_ADDRESS_START;
@@ -152,8 +152,8 @@ process* alloc_process() {
   procs[i].total_mapped_region = 4;
 
   // initialize files_struct
-  procs[i].pfiles = init_proc_file_management();
-  sprint("in alloc_proc. build proc_file_management successfully.\n");
+  procs[i].pfiles = init_proc_file_management(mode);
+  if(!mode) sprint("in alloc_proc. build proc_file_management successfully.\n");
 
   // return after initialization.
   return &procs[i];
@@ -182,7 +182,7 @@ int free_process( process* proc ) {
 int do_fork( process* parent)
 {
   sprint( "will fork a child from parent %d.\n", parent->pid );
-  process* child = alloc_process();
+  process* child = alloc_process(0);
 
   for( int i=0; i<parent->total_mapped_region; i++ ){
     // browse parent's vm space, and copy its trapframe and data segments,
