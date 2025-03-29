@@ -86,7 +86,7 @@ void init_proc_pool() {
 // allocate an empty process, init its vm space. returns the pointer to
 // process strcuture. added @lab3_1
 //
-process* alloc_process() {
+process* alloc_process(int mode) {
   // locate the first usable process structure
   int i;
 
@@ -136,8 +136,8 @@ process* alloc_process() {
   procs[i].mapped_info[SYSTEM_SEGMENT].npages = 1;
   procs[i].mapped_info[SYSTEM_SEGMENT].seg_type = SYSTEM_SEGMENT;
 
-  sprint("in alloc_proc. user frame 0x%lx, user stack 0x%lx, user kstack 0x%lx \n",
-    procs[i].trapframe, procs[i].trapframe->regs.sp, procs[i].kstack);
+  if(!mode) sprint("in alloc_proc. user frame 0x%lx, user stack 0x%lx, user kstack 0x%lx \n",
+      procs[i].trapframe, procs[i].trapframe->regs.sp, procs[i].kstack);
 
   // initialize the process's heap manager
   procs[i].user_heap.heap_top = USER_FREE_ADDRESS_START;
@@ -152,11 +152,66 @@ process* alloc_process() {
   procs[i].total_mapped_region = 4;
 
   // initialize files_struct
-  procs[i].pfiles = init_proc_file_management();
-  sprint("in alloc_proc. build proc_file_management successfully.\n");
+  procs[i].pfiles = init_proc_file_management(mode);
+  if(!mode) sprint("in alloc_proc. build proc_file_management successfully.\n");
 
   // return after initialization.
   return &procs[i];
+}
+
+void exec_prepare(process *proc){
+  proc->trapframe = (trapframe *)alloc_page();  //trapframe, used to save context
+  memset(proc->trapframe, 0, sizeof(trapframe));
+
+  // page directory
+  proc->pagetable = (pagetable_t)alloc_page();
+  memset((void *)proc->pagetable, 0, PGSIZE);
+
+  proc->kstack = (uint64)alloc_page() + PGSIZE;   //user kernel stack top
+  uint64 user_stack = (uint64)alloc_page();       //phisical address of user stack bottom
+  proc->trapframe->regs.sp = USER_STACK_TOP;  //virtual address of user stack top
+
+  // allocates a page to record memory regions (segments)
+  proc->mapped_info = (mapped_region*)alloc_page();
+  memset( proc->mapped_info, 0, PGSIZE );
+
+  // map user stack in userspace
+  user_vm_map((pagetable_t)proc->pagetable, USER_STACK_TOP - PGSIZE, PGSIZE,
+              user_stack, prot_to_type(PROT_WRITE | PROT_READ, 1));
+  proc->mapped_info[STACK_SEGMENT].va = USER_STACK_TOP - PGSIZE;
+  proc->mapped_info[STACK_SEGMENT].npages = 1;
+  proc->mapped_info[STACK_SEGMENT].seg_type = STACK_SEGMENT;
+
+  // map trapframe in user space (direct mapping as in kernel space).
+  user_vm_map((pagetable_t)proc->pagetable, (uint64)proc->trapframe, PGSIZE,
+          (uint64)proc->trapframe, prot_to_type(PROT_WRITE | PROT_READ, 0));
+  proc->mapped_info[CONTEXT_SEGMENT].va = (uint64)proc->trapframe;
+  proc->mapped_info[CONTEXT_SEGMENT].npages = 1;
+  proc->mapped_info[CONTEXT_SEGMENT].seg_type = CONTEXT_SEGMENT;
+
+  // map S-mode trap vector section in user space (direct mapping as in kernel space)
+  // we assume that the size of usertrap.S is smaller than a page.
+  user_vm_map((pagetable_t)proc->pagetable, (uint64)trap_sec_start, PGSIZE,
+          (uint64)trap_sec_start, prot_to_type(PROT_READ | PROT_EXEC, 0));
+  proc->mapped_info[SYSTEM_SEGMENT].va = (uint64)trap_sec_start;
+  proc->mapped_info[SYSTEM_SEGMENT].npages = 1;
+  proc->mapped_info[SYSTEM_SEGMENT].seg_type = SYSTEM_SEGMENT;
+
+
+  // initialize the process's heap manager
+  proc->user_heap.heap_top = USER_FREE_ADDRESS_START;
+  proc->user_heap.heap_bottom = USER_FREE_ADDRESS_START;
+  proc->user_heap.free_pages_count = 0;
+
+  // map user heap in userspace
+  proc->mapped_info[HEAP_SEGMENT].va = USER_FREE_ADDRESS_START;
+  proc->mapped_info[HEAP_SEGMENT].npages = 0;  // no pages are mapped to heap yet.
+  proc->mapped_info[HEAP_SEGMENT].seg_type = HEAP_SEGMENT;
+
+  proc->total_mapped_region = 4;
+
+  // initialize files_struct
+  proc->pfiles = init_proc_file_management(1);
 }
 
 //
@@ -182,7 +237,7 @@ int free_process( process* proc ) {
 int do_fork( process* parent)
 {
   sprint( "will fork a child from parent %d.\n", parent->pid );
-  process* child = alloc_process();
+  process* child = alloc_process(0);
 
   for( int i=0; i<parent->total_mapped_region; i++ ){
     // browse parent's vm space, and copy its trapframe and data segments,
@@ -238,6 +293,8 @@ int do_fork( process* parent)
         // DO NOT COPY THE PHYSICAL PAGES, JUST MAP THEM.
         user_vm_map(child->pagetable, parent->mapped_info[i].va, parent->mapped_info[i].npages,
                     lookup_pa(parent->pagetable, parent->mapped_info[i].va), prot_to_type(PROT_EXEC | PROT_READ, 1));
+        sprint("do_fork map code segment at pa:%lx of parent to child at va:%lx.\n", lookup_pa(parent->pagetable, parent->mapped_info[i].va),
+                    parent->mapped_info[i].va);
         // after mapping, register the vm region (do not delete codes below!)
         child->mapped_info[child->total_mapped_region].va = parent->mapped_info[i].va;
         child->mapped_info[child->total_mapped_region].npages =
@@ -254,4 +311,40 @@ int do_fork( process* parent)
   insert_to_ready_queue( child );
 
   return child->pid;
+}
+
+int wait_process(uint64 pid)
+{
+  int found = 0;
+  if (pid == -1) {
+    for (int i = 0; i < NPROC; i++)
+      if (procs[i].parent == current) {
+        found = 1;
+          if (procs[i].status == ZOMBIE) {
+          procs[i].status = FREE;
+          return i;
+          }
+      }
+    if (found == 0) return -1;   //current parent process doesn't have child process. invalid!
+    else {
+      insert_to_blocked_queue(current);
+      schedule();
+      return -2;
+    }     //there exists a child process without ZOMBIE status
+  }
+  else if (pid < NPROC) {
+    if (procs[pid].parent != current) return -1;//input process pid isn't child of current process
+    else {
+      if (procs[pid].status == ZOMBIE) {
+        procs[pid].status = FREE;
+        return pid;
+      }
+      else {
+        insert_to_blocked_queue(current);
+        schedule();
+        return -2;
+      }  
+    }
+  }
+  else return -1;   //invalid pid
 }

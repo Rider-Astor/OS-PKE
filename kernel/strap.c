@@ -61,7 +61,7 @@ void handle_user_page_fault(uint64 mcause, uint64 sepc, uint64 stval) {
       user_vm_map(current->pagetable, ROUNDDOWN(stval, PGSIZE), PGSIZE, (uint64)alloc_page(), prot_to_type(PROT_READ|PROT_WRITE,1));
       break;
     default:
-      sprint("unknown page fault.\n");
+      panic("unknown page fault. %d\n", mcause);
       break;
   }
 }

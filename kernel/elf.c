@@ -10,6 +10,7 @@
 #include "pmm.h"
 #include "vfs.h"
 #include "spike_interface/spike_utils.h"
+#include "util/functions.h"
 
 typedef struct elf_info_t {
   struct file *f;
@@ -136,4 +137,57 @@ void load_bincode_from_host_elf(process *p, char *filename) {
   vfs_close( info.f );
 
   sprint("Application program entry point (virtual address): 0x%lx\n", p->trapframe->epc);
+}
+
+// exactly from the function avbove
+int do_exec(process *proc, const char *path, const char *para){
+  sprint("Application: %s\n", path);
+ 
+  elf_ctx elfloader;
+  elf_info info;
+
+  info.f = vfs_open(path, O_RDONLY);
+  info.p = proc;
+  
+  if(!info.f){
+    return -1;
+  }
+  if (elf_init(&elfloader, &info) != EL_OK)
+    return -1;
+
+  if (elf_load(&elfloader) != EL_OK) return -1;
+
+  proc->trapframe->epc = elfloader.ehdr.entry;
+  vfs_close( info.f );
+  sprint("Application program entry point (virtual address): 0x%lx\n", proc->trapframe->epc);
+
+  // //hadle the para
+  uint64 sp = proc->trapframe->regs.sp;
+  sp -= (strlen(para) + 1);
+  sp = ROUNDDOWN(sp, 16);
+  memcpy(user_va_to_pa(proc->pagetable, (void*)sp), para, strlen(para) + 1);
+
+  
+  uint64 st_para = sp;
+  sp -= 16;
+  uint64 *sp_pa = (uint64 *)user_va_to_pa(proc->pagetable, (void*)sp);
+  *sp_pa = st_para;
+  proc->trapframe->regs.a0 = 1;  //argc
+  proc->trapframe->regs.a1 = sp; //argv
+  proc->trapframe->regs.sp = sp;
+
+  // const int num_args = 5;
+  // uint64 ustack[num_args],sp = proc->trapframe->regs.sp;
+  // sp -= (strlen(para) + 1);
+  // sp -= sp % 16;
+  // memcpy(user_va_to_pa(proc->pagetable,(void*)sp),para,strlen(para) + 1);
+  // ustack[0] = sp;
+
+  // sp -= (num_args + 1) * sizeof(uint64);
+  // sp -= sp % 16;
+  // memcpy(user_va_to_pa(proc->pagetable,(void*)sp),(char*)ustack,(num_args + 1) * sizeof(uint64));
+  // proc->trapframe->regs.a0 = 1;
+  // proc->trapframe->regs.a1 = sp;
+  // proc->trapframe->regs.sp = sp;
+  return 0;
 }
