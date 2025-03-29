@@ -65,7 +65,7 @@ uint64 sys_user_allocate_chunk(size_t bytes) {
 // reclaim a page, indicated by "va". added @lab2_2
 //
 uint64 sys_user_free_chunk(uint64 va) {
-  return user_better_free((void *)va);
+  return user_better_free((void *)(va - 8));
 }
 
 

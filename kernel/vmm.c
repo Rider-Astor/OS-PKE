@@ -315,7 +315,7 @@ void * user_better_malloc(size_t bytes){
   if(availchunk){
     split_chunk(availchunk, bytes);
     remove_from_free_list(availchunk);
-    return availchunk;
+    return availchunk + 8;
   }
   // else --> not enough
   return 0;
